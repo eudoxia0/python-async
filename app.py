@@ -25,14 +25,16 @@ async def ensure_tables_exist(engine):
 
 
 async def go():
-    async with create_engine(user='pg',
-                             database='hn',
-                             host='postgres',
-                             password='pg') as engine:
+    async with create_engine(user='postgres',
+                             password='postgres',
+                             database='postgres',
+                             host='postgres') as engine:
         await ensure_tables_exist(engine)
         print("Created tables!")
+
+# Scraper
 
 # Entry point
 
 loop = asyncio.get_event_loop()
-loop.run_until_complete(go())
+#loop.run_until_complete(go())

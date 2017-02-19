@@ -9,7 +9,3 @@ services:
      - .:/app
   postgres:
     image: postgres:9.6-alpine
-    environment:
-      - POSTGRES_USER:'pg'
-      - POSTGRES_PASSWORD:'pg'
-      - POSTGRES_DB:'hn'
