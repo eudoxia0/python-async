@@ -34,7 +34,14 @@ async def go():
 
 # Scraper
 
+from aiohttp import client
+
+async def get_front_page_html():
+    response = await client.get('https://news.ycombinator.com/')
+    return (await response.read())
+
 # Entry point
 
 loop = asyncio.get_event_loop()
-#loop.run_until_complete(go())
+print(loop.run_until_complete(get_front_page_html()))
+loop.close()
