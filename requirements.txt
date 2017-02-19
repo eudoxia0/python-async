@@ -1,1 +1,2 @@
 aiopg==0.13.0
+SQLAlchemy==1.1.5
