@@ -31,3 +31,8 @@ async def go():
                              password='pg') as engine:
         await ensure_tables_exist(engine)
         print("Created tables!")
+
+# Entry point
+
+loop = asyncio.get_event_loop()
+loop.run_until_complete(go())
