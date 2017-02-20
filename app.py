@@ -3,10 +3,9 @@ import asyncio
 print("Hello, world!")
 
 # Database
-
 import sqlalchemy as sa
+from sqlalchemy.orm.session import sessionmaker
 from aiopg.sa import create_engine
-
 
 metadata = sa.MetaData()
 
@@ -15,12 +14,14 @@ threads_table = sa.Table('threads', metadata,
                          sa.Column('title', sa.Text()),
                          sa.Column('url', sa.Text()))
 
+def default_engine():
+    return create_engine(user='postgres',
+                         password='postgres',
+                         database='postgres',
+                         host='postgres')
 
 async def ensure_tables_exist():
-    async with create_engine(user='postgres',
-                             password='postgres',
-                             database='postgres',
-                             host='postgres') as engine:
+    async with default_engine() as engine:
         async with engine.acquire() as conn:
             await conn.execute('DROP TABLE threads')
             await conn.execute(sa.schema.CreateTable(threads_table))
@@ -46,19 +47,29 @@ async def get_front_page():
         if link.get('class', None) == ['storylink']:
             url = link['href']
             text = link.string
-            # Despite the aiohttp documentation, the response is not UTF-8 encoded
-            return (url, text.encode('utf-8'))
+            return (url, text)
 
     return filter(lambda x: x is not None, [parse_link(link) for link in links])
+
+async def store_front_page(links):
+    """Downloads the front page, and adds it to the DB."""
+    async with default_engine() as engine:
+        async with engine.acquire() as conn:
+            # aiopg doesn't support executemany
+            for (url, title) in links:
+                await conn.execute(threads_table.insert().values(title=title, url=url))
+
+        async with engine.acquire() as conn:
+            result = await conn.execute("SELECT * FROM threads")
+            selected = await result.fetchall()
+            print(len(selected))
 
 # Entry point
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(ensure_tables_exist())
 links = loop.run_until_complete(get_front_page())
-for l in links:
-    try:
-        print(l)
-    except:
-        print("Error")
+print("Boutta store the front page")
+loop.run_until_complete(store_front_page(links))
+print("Stored the front page")
 loop.close()
