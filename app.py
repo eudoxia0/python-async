@@ -34,6 +34,7 @@ from bs4 import BeautifulSoup
 
 
 async def get_front_page():
+    """Download and scrape the front page, returning a tuple of link URL and title."""
     response = await client.get('https://news.ycombinator.com/')
     html = await response.read()
     soup = BeautifulSoup(html, 'html.parser')
@@ -46,8 +47,8 @@ async def get_front_page():
     def parse_link(link):
         if link.get('class', None) == ['storylink']:
             url = link['href']
-            text = link.string
-            return (url, text)
+            title = link.string
+            return (url, title)
 
     return filter(lambda x: x is not None, [parse_link(link) for link in links])
 
@@ -63,6 +64,8 @@ async def store_front_page(links):
             result = await conn.execute("SELECT * FROM threads")
             selected = await result.fetchall()
             print(len(selected))
+
+# Server
 
 # Entry point
 
