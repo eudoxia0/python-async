@@ -1,11 +1,8 @@
 import asyncio
 
-print("Hello, world!")
-
 # Database
 import sqlalchemy as sa
-from sqlalchemy.orm.session import sessionmaker
-from aiopg.sa import create_engine
+
 
 metadata = sa.MetaData()
 
@@ -13,19 +10,12 @@ threads_table = sa.Table('threads', metadata,
                          sa.Column('id', sa.Integer, primary_key=True),
                          sa.Column('title', sa.Text()),
                          sa.Column('url', sa.Text()))
+engine = sa.create_engine('postgresql://postgres:postgres@postgres/postgres')
 
-def default_engine():
-    return create_engine(user='postgres',
-                         password='postgres',
-                         database='postgres',
-                         host='postgres')
-
-async def ensure_tables_exist():
-    async with default_engine() as engine:
-        async with engine.acquire() as conn:
-            await conn.execute('DROP TABLE threads')
-            await conn.execute(sa.schema.CreateTable(threads_table))
-        print("Created tables!")
+def ensure_tables_exist():
+    with engine.connect() as conn:
+        conn.execute('DROP TABLE threads')
+        conn.execute(sa.schema.CreateTable(threads_table))
 
 # Scraper
 
@@ -52,27 +42,62 @@ async def get_front_page():
 
     return filter(lambda x: x is not None, [parse_link(link) for link in links])
 
-async def store_front_page(links):
+def store_front_page(links):
     """Downloads the front page, and adds it to the DB."""
-    async with default_engine() as engine:
-        async with engine.acquire() as conn:
-            # aiopg doesn't support executemany
-            for (url, title) in links:
-                await conn.execute(threads_table.insert().values(title=title, url=url))
-
-        async with engine.acquire() as conn:
-            result = await conn.execute("SELECT * FROM threads")
-            selected = await result.fetchall()
-            print(len(selected))
+    with engine.connect() as conn:
+        conn.execute(threads_table.insert(),
+                     [{ 'title': title, 'url': url } for (url, title) in links])
 
 # Server
 
+import json
+
+import tornado.ioloop
+import tornado.web
+
+
+class PostsHandler(tornado.web.RequestHandler):
+    """
+    Handler for the posts resource.
+    """
+
+    def get_data(self):
+        with engine.connect() as conn:
+            result = conn.execute("SELECT (id, title, url)  FROM threads")
+            selected = result.fetchall()
+            return selected
+
+    async def get(self):
+        """
+        Return a list of posts from the database.
+        """
+        self.write("Hello, world")
+        data = self.get_data()
+        self.write(json.dumps(str(data)))
+
+
+class MainHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.write("Hello, world")
+
+
+class Application(tornado.web.Application):
+    def __init__(self):
+        tornado.web.Application.__init__(self, [
+            (r"/posts", PostsHandler),
+            (r'/', MainHandler)
+        ], debug=True)
+
 # Entry point
 
+ensure_tables_exist()
+
 loop = asyncio.get_event_loop()
-loop.run_until_complete(ensure_tables_exist())
 links = loop.run_until_complete(get_front_page())
 print("Boutta store the front page")
-loop.run_until_complete(store_front_page(links))
+store_front_page(links)
 print("Stored the front page")
-loop.close()
+
+app = Application()
+app.listen(5000)
+tornado.ioloop.IOLoop.current().start()
