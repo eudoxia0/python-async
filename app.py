@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 metadata = sa.MetaData()
 
-threads_table = sa.Table('threads', metadata,
+Posts = sa.Table('threads', metadata,
                          sa.Column('id', sa.Integer, primary_key=True),
                          sa.Column('title', sa.Text()),
                          sa.Column('url', sa.Text()))
@@ -15,7 +15,7 @@ engine = sa.create_engine('postgresql://postgres:postgres@postgres/postgres')
 def ensure_tables_exist():
     with engine.connect() as conn:
         conn.execute('DROP TABLE threads')
-        conn.execute(sa.schema.CreateTable(threads_table))
+        conn.execute(sa.schema.CreateTable(Posts))
 
 # Scraper
 
@@ -45,7 +45,7 @@ async def get_front_page():
 def store_front_page(links):
     """Downloads the front page, and adds it to the DB."""
     with engine.connect() as conn:
-        conn.execute(threads_table.insert(),
+        conn.execute(Posts.insert(),
                      [{ 'title': title, 'url': url } for (url, title) in links])
 
 # Server
@@ -63,17 +63,29 @@ class PostsHandler(tornado.web.RequestHandler):
 
     def get_data(self):
         with engine.connect() as conn:
-            result = conn.execute("SELECT (id, title, url)  FROM threads")
-            selected = result.fetchall()
-            return selected
+            result = conn.execute(Posts.select())
+            return result.fetchall()
 
     async def get(self):
         """
         Return a list of posts from the database.
         """
-        self.write("Hello, world")
         data = self.get_data()
-        self.write(json.dumps(str(data)))
+        self.write(json.dumps([{ 'title': title, 'url': url }
+                               for (id, title, url) in data]))
+
+
+class RefreshHandler(tornado.web.RequestHandler):
+    """
+    Handler for scraping Hacker News again.
+    """
+
+    async def get(self):
+        """
+        """
+        links = await get_front_page()
+        store_front_page(links)
+        self.write({ 'status': 'ok' })
 
 
 class MainHandler(tornado.web.RequestHandler):
