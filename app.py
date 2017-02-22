@@ -97,6 +97,7 @@ class Application(tornado.web.Application):
     def __init__(self):
         tornado.web.Application.__init__(self, [
             (r"/posts", PostsHandler),
+            (r"/refresh", RefreshHandler),
             (r'/', MainHandler)
         ], debug=True)
 
