@@ -18,22 +18,23 @@ def ensure_tables_exist():
         conn.execute(sa.schema.CreateTable(Posts))
 
 # Scraper
-
-from aiohttp import client
+from tornado import httpclient
 from bs4 import BeautifulSoup
+from datetime import timedelta
+from tornado.gen import with_timeout, convert_yielded
 
 
 async def get_front_page():
     """Download and scrape the front page, returning a tuple of link URL and title."""
-    response = await client.get('https://news.ycombinator.com/')
-    html = await response.read()
+    http_client = httpclient.HTTPClient()
+    response = http_client.fetch('https://news.ycombinator.com/')
+    html = response.body
+    http_client.close()
+
     soup = BeautifulSoup(html, 'html.parser')
     links = soup.find_all('a')
 
-    # Python 3.6 lets supports asynchronous generators, which would fit this
-    # case, but for this example returning the full list is fine since all the
-    # processing is in the CPU
-
+    # Ideally, turn this into a (Python 3.6-only) async generator
     def parse_link(link):
         if link.get('class', None) == ['storylink']:
             url = link['href']
@@ -81,8 +82,6 @@ class RefreshHandler(tornado.web.RequestHandler):
     """
 
     async def get(self):
-        """
-        """
         links = await get_front_page()
         store_front_page(links)
         self.write({ 'status': 'ok' })
@@ -104,12 +103,6 @@ class Application(tornado.web.Application):
 # Entry point
 
 ensure_tables_exist()
-
-loop = asyncio.get_event_loop()
-links = loop.run_until_complete(get_front_page())
-print("Boutta store the front page")
-store_front_page(links)
-print("Stored the front page")
 
 app = Application()
 app.listen(5000)
